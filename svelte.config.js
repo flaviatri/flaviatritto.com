@@ -19,10 +19,10 @@ const config = {
 			precompress: false
 		}),
 
-		paths: {
-			base: dev ? '' : '/flaviatritto.com'
-			// assets: dev ? '' : '/GTL-web/docs'
-		},
+		// paths: {
+		// 	base: dev ? '' : '/flaviatritto.com'
+		// 	// assets: dev ? '' : '/GTL-web/docs'
+		// },
 
 		prerender: {
 			// This can be false if you're using a fallback (i.e. SPA mode)
