@@ -1,37 +1,21 @@
-import adapter from '@sveltejs/adapter-static';
-import preprocess from 'svelte-preprocess';
-
-const dev = process.env.NODE_ENV === 'development';
+import { mdsvex } from 'mdsvex';
+import adapter from '@sveltejs/adapter-auto';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
-	// Consult https://github.com/sveltejs/svelte-preprocess
+	// Consult https://svelte.dev/docs/kit/integrations
 	// for more information about preprocessors
-	preprocess: preprocess(),
+	preprocess: [vitePreprocess(), mdsvex()],
 
 	kit: {
-		// /docs because of github pages
-		adapter: adapter({
-			// default options are shown
-			pages: 'docs',
-			assets: 'docs',
-			fallback: null,
-			precompress: false
-		}),
+		// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
+		// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
+		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
+		adapter: adapter()
+	},
 
-		// paths: {
-		// 	base: dev ? '' : '/flaviatritto.com'
-		// 	// assets: dev ? '' : '/GTL-web/docs'
-		// },
-
-		prerender: {
-			// This can be false if you're using a fallback (i.e. SPA mode)
-			default: true
-		},
-
-		// Needed for github pages
-		trailingSlash: 'always'
-	}
+	extensions: ['.svelte', '.svx']
 };
 
 export default config;
