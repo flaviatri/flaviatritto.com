@@ -12,9 +12,6 @@
 		rendered: boolean;
 		height: number;
 		width: number;
-		scale: number;
-		actualHeight: number; // Original PDF page height
-		actualWidth: number; // Original PDF page width
 	}
 
 	interface ViewerState {
@@ -23,8 +20,6 @@
 		loading: boolean;
 		loadingProgress: number;
 		pages: PageState[];
-		containerWidth: number;
-		containerHeight: number;
 	}
 
 	let state: ViewerState = {
@@ -32,28 +27,13 @@
 		pageCount: 0,
 		loading: true,
 		loadingProgress: 0,
-		pages: [],
-		containerWidth: 0,
-		containerHeight: 0
+		pages: []
 	};
 
 	let containerRef: HTMLDivElement;
 	let observers: IntersectionObserver[] = [];
 	const pdfUrl = `${assets}/portfolio.pdf`;
-	const QUALITY_SCALE = 2; // Increase rendering quality
-	const WIDTH_RATIO = 0.9; // Page width as percentage of container
-
-	// Resize observer to handle container size changes
-	let resizeObserver: ResizeObserver;
-
-	function handleResize(entries: ResizeObserverEntry[]) {
-		const entry = entries[0];
-		if (entry) {
-			state.containerWidth = entry.contentRect.width;
-			state.containerHeight = entry.contentRect.height;
-			calculatePageDimensions();
-		}
-	}
+	const MAX_WIDTH = 1000; // Maximum width for pages
 
 	async function loadPDF(): Promise<void> {
 		try {
@@ -77,10 +57,7 @@
 				canvas: null,
 				rendered: false,
 				height: 0,
-				width: 0,
-				scale: 1,
-				actualHeight: 0,
-				actualWidth: 0
+				width: 0
 			}));
 
 			state.loading = false;
@@ -94,33 +71,18 @@
 	}
 
 	async function calculatePageDimensions(): Promise<void> {
-		if (!state.pdfDoc || !state.containerWidth) return;
+		if (!state.pdfDoc) return;
 
 		for (let i = 0; i < state.pageCount; i++) {
 			const page = await state.pdfDoc.getPage(i + 1);
 			const viewport = page.getViewport({ scale: 1.0 });
 
-			// Store actual dimensions
-			state.pages[i].actualWidth = viewport.width;
-			state.pages[i].actualHeight = viewport.height;
+			// Calculate scale to fit within MAX_WIDTH while maintaining aspect ratio
+			const scale = Math.min(MAX_WIDTH / viewport.width, 1.5);
+			const scaledViewport = page.getViewport({ scale });
 
-			// Calculate scale to fit width while maintaining aspect ratio
-			const targetWidth = state.containerWidth * WIDTH_RATIO;
-			const scale = targetWidth / viewport.width;
-
-			// Calculate dimensions maintaining aspect ratio
-			const scaledWidth = viewport.width * scale;
-			const scaledHeight = viewport.height * scale;
-
-			state.pages[i].width = scaledWidth;
-			state.pages[i].height = scaledHeight;
-			state.pages[i].scale = scale;
-
-			// If already rendered, re-render with new dimensions
-			if (state.pages[i].rendered && state.pages[i].canvas) {
-				state.pages[i].rendered = false;
-				renderPage(state.pages[i]);
-			}
+			state.pages[i].width = scaledViewport.width;
+			state.pages[i].height = scaledViewport.height;
 		}
 	}
 
@@ -129,30 +91,21 @@
 
 		try {
 			const page = await state.pdfDoc.getPage(pageState.pageNum);
+			const viewport = page.getViewport({ scale: 1.0 });
 
-			// Calculate render dimensions at higher quality
-			const renderScale = pageState.scale * QUALITY_SCALE;
-			const viewport = page.getViewport({ scale: renderScale });
+			// Calculate scale to fit within MAX_WIDTH while maintaining aspect ratio
+			const scale = Math.min(MAX_WIDTH / viewport.width, 1.5);
+			const scaledViewport = page.getViewport({ scale });
 
-			// Set canvas size to the high-quality dimensions
-			pageState.canvas.width = viewport.width;
-			pageState.canvas.height = viewport.height;
+			pageState.canvas.width = scaledViewport.width;
+			pageState.canvas.height = scaledViewport.height;
 
-			// Set display size to the regular scale using CSS
-			pageState.canvas.style.width = `${pageState.width}px`;
-			pageState.canvas.style.height = `${pageState.height}px`;
-
-			const ctx = pageState.canvas.getContext('2d', { alpha: false });
+			const ctx = pageState.canvas.getContext('2d');
 			if (!ctx) throw new Error('Canvas 2D context not available');
-
-			// Set rendering context properties for better quality
-			ctx.imageSmoothingEnabled = true;
-			ctx.imageSmoothingQuality = 'high';
 
 			await page.render({
 				canvasContext: ctx,
-				viewport,
-				background: 'rgb(255, 255, 255)'
+				viewport: scaledViewport
 			}).promise;
 
 			pageState.rendered = true;
@@ -190,17 +143,10 @@
 
 	onMount(() => {
 		loadPDF();
-		resizeObserver = new ResizeObserver(handleResize);
-		if (containerRef) {
-			resizeObserver.observe(containerRef);
-		}
 	});
 
 	onDestroy(() => {
 		observers.forEach((observer) => observer.disconnect());
-		if (resizeObserver) {
-			resizeObserver.disconnect();
-		}
 	});
 </script>
 
@@ -250,16 +196,14 @@
 		bottom: 0;
 		overflow-y: auto;
 		overflow-x: hidden;
-		background: #1a1a1a;
+		background: #333;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		padding: 20px;
-		box-sizing: border-box;
 	}
 
 	.page-container {
-		margin: 12px 0;
+		margin: 8px 0;
 		display: flex;
 		justify-content: center;
 		opacity: 0;
@@ -269,19 +213,14 @@
 
 	.page-wrapper {
 		background: white;
-		box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-		border-radius: 2px;
-		transition: transform 0.2s ease;
-	}
-
-	.page-wrapper:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+		transition: opacity 0.3s ease;
 	}
 
 	.page {
 		display: block;
-		border-radius: 2px;
+		width: 100%;
+		height: 100%;
 	}
 
 	@keyframes fadeIn {
